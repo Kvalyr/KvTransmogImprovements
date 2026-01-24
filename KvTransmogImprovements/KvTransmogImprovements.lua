@@ -51,33 +51,33 @@ local function KVTI_TransmogFrame_OutfitPopup_OnShow(...)
 	end
 	local TransmogFrame = KVTI.TransmogFrame
 	C_TransmogOutfitInfo.ChangeViewedOutfit(TransmogFrame.OutfitPopup.outfitData.outfitID)
-	KVTI.icon_suggester.leftSlots:UpdateButtons()
-	KVTI.icon_suggester.rightSlots:UpdateButtons()
-	KVTI.icon_suggester.bottomSlots:UpdateButtons()
+	KVTI.icon_suggester:Update()
 	KVTI.icon_suggester:Show()
 end
 
 -- ----------------------------------------------------------------------------------------------------------------
 local function KVTI_TransmogFrame_OnShow(...)
+	if not KVTI.initDone then
+		return
+	end
+
+	if KVTI.GetSetting("KVTI_AddOutfitNumbers") then
+		KVTI.AddNumbersToOutfitList(KVTI.TransmogFrame)
+	end
+
 	local atNPC = C_Transmog.IsAtTransmogNPC()
-	if atNPC or not KVTI.initDone then
+	if atNPC then
 		KVTI.disabler_overlay:Hide()
 		KVTI.disabler_overlaySituations:Hide()
 		KVTI.infoFrame:Hide()
 		return
-	end
-	KVTI.disabler_overlay:Show()
-	KVTI.disabler_overlaySituations:Show()
-	KVTI.infoFrame:Show()
-
-	if KVTI.GetSetting("KVTI_AddOutfitNumbers") then
-		KVTI.AddNumbersToOutfitList(KVTI.TransmogFrame)
 	end
 
 	-- local OutfitCollection = TransmogFrame.OutfitCollection
 	-- OutfitCollection.PurchaseOutfitButton:Disable()
 	-- MoneyFrame_Update(OutfitCollection.MoneyFrame.Money, 0, true);
 	-- OutfitCollection.SaveOutfitButton:SetEnabled(false);
+
 end
 
 
@@ -136,7 +136,6 @@ local function SetupSlashCmd()
 		end
 	end
 end
-
 
 -- ----------------------------------------------------------------------------------------------------------------
 function KVTI.AddNumbersToOutfitList(TransmogFrame)
@@ -214,12 +213,20 @@ function KVTI.Init(...)
 	KVTI.icon_suggester = KVTI.CreateIconSuggester(TransmogFrame)
 
 	TransmogFrame:HookScript("OnShow", KVTI_TransmogFrame_OnShow)
+	-- Also hook Init so that we re-update the outfit numbers after the player edits an outfit's name/icon
+	hooksecurefunc(TransmogOutfitEntryMixin, "Init", KVTI_TransmogFrame_OnShow)
+
 	TransmogFrame.OutfitPopup:HookScript("OnShow", KVTI_TransmogFrame_OutfitPopup_OnShow)
+
 	KVTI.SetupOptions()
 
 	if KVTI.GetSetting("KVTI_CloseTransmogWithEsc") then
 		tinsert(UISpecialFrames, "TransmogFrame")
 	end
+
+	KVTI.disabler_overlay:Hide()
+	KVTI.disabler_overlaySituations:Hide()
+	KVTI.infoFrame:Hide()
 
 	KVTI.initDone = true
 end
