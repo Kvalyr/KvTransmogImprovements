@@ -1,16 +1,19 @@
 local addon, ns = ...
 local i, _
-
+local C_TransmogOutfitInfo = _G["C_TransmogOutfitInfo"]
+-- ----------------------------------------------------------------------------------------------------------------
 local KvTransmogImprovements = CreateFrame("Frame", "KvTransmogImprovements", UIParent)
 local KVTI = KvTransmogImprovements
-local initDone = false
+KVTI.initDone = false
 KVTI.author = "Kvalyr"
 KVTI.addonPrefix = "KVTI"
-KVTI.version = "0.1.0"
+KVTI.version = "0.2.0"
+ns.KVTI = KVTI
+
+KVTI.outfitNumbersAdded = false
 
 KvTransmogImprovements:RegisterEvent("PLAYER_LOGIN")
 KvTransmogImprovements:RegisterEvent("PLAYER_ENTERING_WORLD")
-
 KvTransmogImprovements:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
         KVTI.Init()
@@ -18,6 +21,7 @@ KvTransmogImprovements:SetScript("OnEvent", function(self, event, ...)
 end)
 
 
+-- ----------------------------------------------------------------------------------------------------------------
 local function LoadBlizzFrames()
 	if not C_AddOns.IsAddOnLoaded("Blizard_TransmogShared") then
 		C_AddOns.LoadAddOn("Blizard_TransmogShared")
@@ -36,10 +40,27 @@ local function LoadBlizzFrames()
 	return TransmogFrame
 end
 
+-- ----------------------------------------------------------------------------------------------------------------
+local function KVTI_TransmogFrame_OutfitPopup_OnShow(...)
+	local iconSuggesterEnabled = KVTI.GetSetting("KVTI_DoIconSuggestions")
+	if not KVTI.initDone or not iconSuggesterEnabled then
+		if KVTI.icon_suggester then
+			KVTI.icon_suggester:Hide()
+		end
+		return
+	end
+	local TransmogFrame = KVTI.TransmogFrame
+	C_TransmogOutfitInfo.ChangeViewedOutfit(TransmogFrame.OutfitPopup.outfitData.outfitID)
+	KVTI.icon_suggester.leftSlots:UpdateButtons()
+	KVTI.icon_suggester.rightSlots:UpdateButtons()
+	KVTI.icon_suggester.bottomSlots:UpdateButtons()
+	KVTI.icon_suggester:Show()
+end
 
+-- ----------------------------------------------------------------------------------------------------------------
 local function KVTI_TransmogFrame_OnShow(...)
 	local atNPC = C_Transmog.IsAtTransmogNPC()
-	if atNPC then
+	if atNPC or not KVTI.initDone then
 		KVTI.disabler_overlay:Hide()
 		KVTI.disabler_overlaySituations:Hide()
 		KVTI.infoFrame:Hide()
@@ -49,6 +70,10 @@ local function KVTI_TransmogFrame_OnShow(...)
 	KVTI.disabler_overlaySituations:Show()
 	KVTI.infoFrame:Show()
 
+	if KVTI.GetSetting("KVTI_AddOutfitNumbers") then
+		KVTI.AddNumbersToOutfitList(KVTI.TransmogFrame)
+	end
+
 	-- local OutfitCollection = TransmogFrame.OutfitCollection
 	-- OutfitCollection.PurchaseOutfitButton:Disable()
 	-- MoneyFrame_Update(OutfitCollection.MoneyFrame.Money, 0, true);
@@ -56,6 +81,7 @@ local function KVTI_TransmogFrame_OnShow(...)
 end
 
 
+-- ----------------------------------------------------------------------------------------------------------------
 local function CreateBlockerFrame(parentFrame, frameName)
 	local kvtido = CreateFrame("Frame", frameName, parentFrame)
 	kvtido:SetFrameStrata("DIALOG")
@@ -83,7 +109,8 @@ local function CreateBlockerFrame(parentFrame, frameName)
 end
 
 
-local function ShowTransmogUI()
+-- ----------------------------------------------------------------------------------------------------------------
+function KVTI.ShowTransmogUI()
 	UIParentLoadAddOn("Blizzard_Transmog");
 	local TransmogFrame = LoadBlizzFrames()
 	if not TransmogFrame then
@@ -94,19 +121,52 @@ local function ShowTransmogUI()
 end
 
 
+-- ----------------------------------------------------------------------------------------------------------------
 local function SetupSlashCmd()
 	SLASH_KVTI1 = "/transmog"
 	SLASH_KVTI2 = "/kvti"
 
 	-- 2. Define the function that runs when the command is used
 	SlashCmdList["KVTI"] = function(msg)
-		ShowTransmogUI()
+		if not msg or msg == "" then
+			KVTI.ShowTransmogUI()
+		end
+		if msg == "config" then
+			Settings.OpenToCategory(KVTI.settingsCategory:GetID())
+		end
 	end
 end
 
 
+-- ----------------------------------------------------------------------------------------------------------------
+function KVTI.AddNumbersToOutfitList(TransmogFrame)
+	local idx = 1
+	TransmogFrame.OutfitCollection.OutfitList.ScrollBox:ForEachFrame(function(frame)
+		local elementData = frame:GetElementData();
+		local button = nil
+		if elementData then
+			button = frame.OutfitButton
+		end
+		if button then
+			local idx_text = tostring(idx)
+			if strlen(idx_text) == 1 then
+				idx_text = " " .. idx_text
+			end
+			idx_text = "\124cFFFFFF00" .. idx_text .. ":   " .. "|r"
+			button.TextContent.Name:SetText(idx_text .. elementData.name);
+		end
+		idx = idx + 1
+	end)
+end
+
+
+-- ----------------------------------------------------------------------------------------------------------------
 function KVTI.Init(...)
-	if initDone then
+	local savedVars = _G["KvTransmogImprovements_SavedVariables"]
+	if not savedVars then
+		_G["KvTransmogImprovements_SavedVariables"] = {}
+	end
+	if KVTI.initDone then
 		return
 	end
 	local TransmogFrame = LoadBlizzFrames()
@@ -114,6 +174,7 @@ function KVTI.Init(...)
 		-- TODO: error logging?
 		return
 	end
+	KVTI.TransmogFrame = TransmogFrame
 	SetupSlashCmd()
 	local OutfitList = TransmogFrame.OutfitCollection.OutfitList
 	local SituationsFrame = TransmogFrame.WardrobeCollection.TabContent.SituationsFrame
@@ -150,6 +211,15 @@ function KVTI.Init(...)
     infoFrameText:SetPoint("BOTTOMRIGHT", infoFrame, "BOTTOMRIGHT", -14, 14)
     infoFrameText:SetText("You CAN modify 'Custom Sets' and you CAN browse, preview and apply 'Outfits'.\nYou CANNOT save any modifications to Outfits or purchase new Outfit Slots.\n\nVisit a transmog NPC to make changes to Outfits.")
 
+	KVTI.icon_suggester = KVTI.CreateIconSuggester(TransmogFrame)
+
 	TransmogFrame:HookScript("OnShow", KVTI_TransmogFrame_OnShow)
-	initDone = true
+	TransmogFrame.OutfitPopup:HookScript("OnShow", KVTI_TransmogFrame_OutfitPopup_OnShow)
+	KVTI.SetupOptions()
+
+	if KVTI.GetSetting("KVTI_CloseTransmogWithEsc") then
+		tinsert(UISpecialFrames, "TransmogFrame")
+	end
+
+	KVTI.initDone = true
 end

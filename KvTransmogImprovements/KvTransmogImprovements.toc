@@ -2,6 +2,9 @@
 ## Author: Kvalyr
 ## Title: Transmog Improvements
 ## Notes: Transmog Improvements for Midnight
-## Version: 0.1.0
+## Version: 0.2.0
+## SavedVariables: KvTransmogImprovements_SavedVariables
 
 KvTransmogImprovements.lua
+KVTI_IconSuggester.lua
+KVTI_Options.lua
