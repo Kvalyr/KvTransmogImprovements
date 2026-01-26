@@ -1,13 +1,14 @@
 local addon, ns = ...
 local i, _
 local C_TransmogOutfitInfo = _G["C_TransmogOutfitInfo"]
+
 -- ----------------------------------------------------------------------------------------------------------------
 local KvTransmogImprovements = CreateFrame("Frame", "KvTransmogImprovements", UIParent)
 local KVTI = KvTransmogImprovements
 KVTI.initDone = false
 KVTI.author = "Kvalyr"
 KVTI.addonPrefix = "KVTI"
-KVTI.version = "0.2.0"
+KVTI.version = "0.2.1"
 ns.KVTI = KVTI
 
 KVTI.outfitNumbersAdded = false
@@ -40,6 +41,7 @@ local function LoadBlizzFrames()
 	return TransmogFrame
 end
 
+
 -- ----------------------------------------------------------------------------------------------------------------
 local function KVTI_TransmogFrame_OutfitPopup_OnShow(...)
 	local iconSuggesterEnabled = KVTI.GetSetting("KVTI_DoIconSuggestions")
@@ -54,6 +56,7 @@ local function KVTI_TransmogFrame_OutfitPopup_OnShow(...)
 	KVTI.icon_suggester:Update()
 	KVTI.icon_suggester:Show()
 end
+
 
 -- ----------------------------------------------------------------------------------------------------------------
 local function KVTI_TransmogFrame_OnShow(...)
@@ -72,12 +75,14 @@ local function KVTI_TransmogFrame_OnShow(...)
 		KVTI.infoFrame:Hide()
 		return
 	end
+	KVTI.disabler_overlay:Show()
+	KVTI.disabler_overlaySituations:Show()
+	KVTI.infoFrame:Show()
 
 	-- local OutfitCollection = TransmogFrame.OutfitCollection
 	-- OutfitCollection.PurchaseOutfitButton:Disable()
 	-- MoneyFrame_Update(OutfitCollection.MoneyFrame.Money, 0, true);
 	-- OutfitCollection.SaveOutfitButton:SetEnabled(false);
-
 end
 
 
@@ -136,6 +141,7 @@ local function SetupSlashCmd()
 		end
 	end
 end
+
 
 -- ----------------------------------------------------------------------------------------------------------------
 function KVTI.AddNumbersToOutfitList(TransmogFrame)
