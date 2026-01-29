@@ -1,6 +1,8 @@
 local addon, ns = ...
 local i, _
 local KVTI = ns.KVTI
+local utils = ns.KVTI_Utils
+
 -- ----------------------------------------------------------------------------------------------------------------
 local NUM_SUGGESTIONS = 14 -- 14 addressable equipment slots + extra 1 for separate shoulder slot
 local NUM_SUGGESTIONS_ROW_T = 7
@@ -48,66 +50,11 @@ local function CreateIconSuggestionButton(TransmogFrame, parentFrame, idx)
 end
 
 -- ----------------------------------------------------------------------------------------------------------------
-local function createSplitSuggestionIcons(TransmogFrame, parentFrame)
-    -- Create 3 different subframes of suggestion slots mapping to letSlots, rightSlots, bottomSlots
-
-    -- ------------------------
-	local function UpdateIconSuggestionButtonSet(self)
-		for idx,slot in pairs(self.associatedBlizzFrame:GetLayoutChildren()) do
-			local btn = self.buttons[idx]
-			if not btn then
-				local anchorFrame = self
-				local anchorPoint = "TOP"
-				local xOffset = 0
-				local yOffset = -12
-				local prevBtn = self.buttons[idx-1]
-				if prevBtn then
-					anchorFrame = prevBtn
-					anchorPoint = "BOTTOM"
-					xOffset = 0
-					yOffset = -5
-				end
-				btn = CreateIconSuggestionButton(TransmogFrame, self, idx)
-				btn:SetPoint("TOP", anchorFrame, anchorPoint, xOffset, yOffset)
-				self.buttons[idx] = btn
-			end
-			btn:UpdateTexture(slot.Icon:GetTexture())
-		end
-	end
-
-    -- ------------------------
-	local leftSlots = CreateFrame("Frame", parentFrame:GetName() .. "LeftSlots", parentFrame)
-	leftSlots:SetPoint("TOPLEFT", parentFrame, "TOPLEFT", 0, -20)
-	leftSlots:SetPoint("BOTTOMRIGHT", parentFrame, "BOTTOM", 0, 0)
-	leftSlots.buttons = {}
-	leftSlots.associatedBlizzFrame = TransmogFrame.CharacterPreview.LeftSlots
-	leftSlots.UpdateButtons = UpdateIconSuggestionButtonSet
-	parentFrame.leftSlots = leftSlots
-
-	local rightSlots = CreateFrame("Frame", parentFrame:GetName() .. "RightSlots", parentFrame)
-	rightSlots:SetPoint("TOPRIGHT", parentFrame, "TOPRIGHT", 0, -20)
-	rightSlots:SetPoint("BOTTOMLEFT", parentFrame, "BOTTOM", 0, 120)
-	rightSlots.buttons = {}
-	rightSlots.associatedBlizzFrame = TransmogFrame.CharacterPreview.RightSlots
-	rightSlots.UpdateButtons = UpdateIconSuggestionButtonSet
-	parentFrame.rightSlots = rightSlots
-
-    -- Weapon Slots
-	local bottomSlots = CreateFrame("Frame", parentFrame:GetName() .. "BottomSlots", parentFrame)
-	bottomSlots:SetPoint("TOPLEFT", rightSlots, "BOTTOMLEFT", 0, 0)
-	bottomSlots:SetPoint("BOTTOMRIGHT", parentFrame, "BOTTOMRIGHT", 0, 0)
-	bottomSlots.buttons = {}
-	bottomSlots.associatedBlizzFrame = TransmogFrame.CharacterPreview.BottomSlots
-	bottomSlots.UpdateButtons = UpdateIconSuggestionButtonSet
-	parentFrame.bottomSlots = bottomSlots
-end
-
-
--- ----------------------------------------------------------------------------------------------------------------
 local function createCombinedSuggestionIcons(TransmogFrame, parentFrame)
     -- Create one bucket of suggestion slots across all of leftSlots, rightSlots, bottomSlots
 
     -- ------------------------
+    -- TODO: Use layout frames instead
 	local function UpdateIconSuggestionButtonSet(self)
         local leftSlots = TransmogFrame.CharacterPreview.LeftSlots:GetLayoutChildren()
         local rightSlots = TransmogFrame.CharacterPreview.RightSlots:GetLayoutChildren()
@@ -210,21 +157,11 @@ function KVTI.CreateIconSuggester(TransmogFrame)
     previewOverlay.tex:SetColorTexture(0, 0, 0, 0.75)
     previewOverlay.tex:SetAllPoints()
 
-    if splitSuggestions then
-        createSplitSuggestionIcons(TransmogFrame, frame)
-    else
-        createCombinedSuggestionIcons(TransmogFrame, frame)
-    end
+    createCombinedSuggestionIcons(TransmogFrame, frame)
 
     frame.Update = function(self)
-        if splitSuggestions then
-            self.leftSlots:UpdateButtons()
-            self.rightSlots:UpdateButtons()
-            self.bottomSlots:UpdateButtons()
-        else
-            self.rowT:UpdateButtons()
-            self.rowB:UpdateButtons()
-        end
+        self.rowT:UpdateButtons()
+        self.rowB:UpdateButtons()
     end
 
 	return frame

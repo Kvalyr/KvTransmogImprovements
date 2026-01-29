@@ -1,29 +1,62 @@
 local addon, ns = ...
 local i, _
-local C_TransmogOutfitInfo = _G["C_TransmogOutfitInfo"]
+local utils = ns.KVTI_Utils
 
 -- ----------------------------------------------------------------------------------------------------------------
 local KvTransmogImprovements = CreateFrame("Frame", "KvTransmogImprovements", UIParent)
 local KVTI = KvTransmogImprovements
+ns.KVTI = KVTI
 KVTI.initDone = false
 KVTI.author = "Kvalyr"
 KVTI.addonPrefix = "KVTI"
-KVTI.version = "0.2.1"
-ns.KVTI = KVTI
-
+KVTI.version = "0.3.0"
+KVTI.savedVarsKey = "KvTransmogImprovements_SavedVariables"
 KVTI.outfitNumbersAdded = false
+KVTI.Masque = LibStub("Masque", true)
+if KVTI.Masque then
+	KVTI.Masque_Group_MainButtons = KVTI.Masque:Group("Transmog Improvements", "Main Buttons")
+	KVTI.Masque_Group_OutfitButtons = KVTI.Masque:Group("Transmog Improvements", "Outfit Buttons")
+end
+KVTI.transmogFrameShown = false
 
+
+-- ----------------------------------------------------------------------------------------------------------------
+function KVTI:GetVersionNumber()
+    return utils.versionStringToNumber(KVTI.version)
+end
+
+
+function KVTI:InitializeSavedVars()
+	_G[KVTI.savedVarsKey] = {}
+	_G[KVTI.savedVarsKey]["version_number"] = self:GetVersionNumber()
+	_G[KVTI.savedVarsKey]["buttons"] = {}
+end
+
+function KVTI.SetupSavedVariables()
+	local savedVars = _G[KVTI.savedVarsKey]
+	if not savedVars or not savedVars["version_number"] then
+		KVTI:InitializeSavedVars()
+		savedVars = _G[KVTI.savedVarsKey]
+	end
+	KVTI.savedVars = _G[KVTI.savedVarsKey]
+end
+
+
+-- ----------------------------------------------------------------------------------------------------------------
+KvTransmogImprovements:RegisterEvent("ADDON_LOADED")
 KvTransmogImprovements:RegisterEvent("PLAYER_LOGIN")
 KvTransmogImprovements:RegisterEvent("PLAYER_ENTERING_WORLD")
 KvTransmogImprovements:SetScript("OnEvent", function(self, event, ...)
-    if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
-        KVTI.Init()
-    end
+	if event == "ADDON_LOADED" then
+		KVTI.SetupSavedVariables()
+	elseif event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
+		KVTI.Init(event, ...)
+	end
 end)
 
 
 -- ----------------------------------------------------------------------------------------------------------------
-local function LoadBlizzFrames()
+function KVTI.LoadBlizzFrames(event)
 	if not C_AddOns.IsAddOnLoaded("Blizard_TransmogShared") then
 		C_AddOns.LoadAddOn("Blizard_TransmogShared")
 	end
@@ -35,54 +68,11 @@ local function LoadBlizzFrames()
 		UIParentLoadAddOn("Blizzard_Transmog")
 	end
 
-	if not TransmogFrame then
-		return
+	if event == "PLAYER_ENTERING_WORLD" then
+		assert(TransmogFrame ~= nil, "KVTI Error: Unable to load TransmogFrame during PLAYER_ENTERING_WORLD")
 	end
+
 	return TransmogFrame
-end
-
-
--- ----------------------------------------------------------------------------------------------------------------
-local function KVTI_TransmogFrame_OutfitPopup_OnShow(...)
-	local iconSuggesterEnabled = KVTI.GetSetting("KVTI_DoIconSuggestions")
-	if not KVTI.initDone or not iconSuggesterEnabled then
-		if KVTI.icon_suggester then
-			KVTI.icon_suggester:Hide()
-		end
-		return
-	end
-	local TransmogFrame = KVTI.TransmogFrame
-	C_TransmogOutfitInfo.ChangeViewedOutfit(TransmogFrame.OutfitPopup.outfitData.outfitID)
-	KVTI.icon_suggester:Update()
-	KVTI.icon_suggester:Show()
-end
-
-
--- ----------------------------------------------------------------------------------------------------------------
-local function KVTI_TransmogFrame_OnShow(...)
-	if not KVTI.initDone then
-		return
-	end
-
-	if KVTI.GetSetting("KVTI_AddOutfitNumbers") then
-		KVTI.AddNumbersToOutfitList(KVTI.TransmogFrame)
-	end
-
-	local atNPC = C_Transmog.IsAtTransmogNPC()
-	if atNPC then
-		KVTI.disabler_overlay:Hide()
-		KVTI.disabler_overlaySituations:Hide()
-		KVTI.infoFrame:Hide()
-		return
-	end
-	KVTI.disabler_overlay:Show()
-	KVTI.disabler_overlaySituations:Show()
-	KVTI.infoFrame:Show()
-
-	-- local OutfitCollection = TransmogFrame.OutfitCollection
-	-- OutfitCollection.PurchaseOutfitButton:Disable()
-	-- MoneyFrame_Update(OutfitCollection.MoneyFrame.Money, 0, true);
-	-- OutfitCollection.SaveOutfitButton:SetEnabled(false);
 end
 
 
@@ -117,14 +107,25 @@ end
 -- ----------------------------------------------------------------------------------------------------------------
 function KVTI.ShowTransmogUI()
 	UIParentLoadAddOn("Blizzard_Transmog");
-	local TransmogFrame = LoadBlizzFrames()
-	if not TransmogFrame then
-		print("KVTI Error: Unable to load TransmogFrame")
-		return
-	end
+	local TransmogFrame = KVTI.LoadBlizzFrames()
 	TransmogFrame:Show()
 end
 
+function KVTI.CloseTransmogUI()
+	local TransmogFrame = KVTI.LoadBlizzFrames()
+	if TransmogFrame:IsShown() and TransmogFrame.CloseButton then
+		TransmogFrame.CloseButton:Click()
+	end
+end
+
+function KVTI.ToggleTransmogUI()
+	local TransmogFrame = KVTI.LoadBlizzFrames()
+	if TransmogFrame:IsShown() then
+		KVTI.CloseTransmogUI()
+		return
+	end
+	KVTI.ShowTransmogUI()
+end
 
 -- ----------------------------------------------------------------------------------------------------------------
 local function SetupSlashCmd()
@@ -164,17 +165,18 @@ function KVTI.AddNumbersToOutfitList(TransmogFrame)
 	end)
 end
 
-
 -- ----------------------------------------------------------------------------------------------------------------
-function KVTI.Init(...)
-	local savedVars = _G["KvTransmogImprovements_SavedVariables"]
-	if not savedVars then
-		_G["KvTransmogImprovements_SavedVariables"] = {}
-	end
+function KVTI.Init(event, ...)
 	if KVTI.initDone then
 		return
 	end
-	local TransmogFrame = LoadBlizzFrames()
+
+	-- For debugging convenience
+	if not _G["KVTI"] then
+		_G["KVTI"] = KVTI
+	end
+
+	local TransmogFrame = KVTI.LoadBlizzFrames(event)
 	if not TransmogFrame then
 		-- TODO: error logging?
 		return
@@ -195,38 +197,42 @@ function KVTI.Init(...)
 	kvtidoSituations:SetPoint("BOTTOMRIGHT", SituationsFrame, "BOTTOMRIGHT", -8, 11)
 	kvtidoSituations:SetHeight(100)
 
-    local infoFrame = CreateFrame("Frame", "KVTI_Info", TransmogFrame, "TranslucentFrameTemplate")
+	local infoFrame = CreateFrame("Frame", "KVTI_Info", TransmogFrame, "TranslucentFrameTemplate")
 	infoFrame:SetPoint("BOTTOMLEFT", TransmogFrame, "BOTTOMLEFT", 2, 4)
 	infoFrame:SetPoint("TOP", OutfitList, "BOTTOM", 0, -4)
 	infoFrame:SetWidth(550)
-    infoFrame:SetFrameStrata("TOOLTIP")
-    infoFrame:Hide()
-    KVTI.infoFrame = infoFrame
+	infoFrame:SetFrameStrata("TOOLTIP")
+	infoFrame:Hide()
+	KVTI.infoFrame = infoFrame
 
-    local infoFrameTextTitle = infoFrame:CreateFontString("KVTIInfoFrameText", "OVERLAY", "GameTooltipText")
-    infoFrame.textTitle = infoFrameTextTitle
-    infoFrameTextTitle:SetPoint("TOP", 0, -15)
+	local infoFrameTextTitle = infoFrame:CreateFontString("KVTIInfoFrameText", "OVERLAY", "GameTooltipText")
+	infoFrame.textTitle = infoFrameTextTitle
+	infoFrameTextTitle:SetPoint("TOP", 0, -15)
 	infoFrameTextTitle:SetTextColor(1, 0, 0, 1)
-    infoFrameTextTitle:SetText("Transmog Functions are limited when not interacting with a Transmog NPC.")
+	infoFrameTextTitle:SetText("Transmog Functions are limited when not interacting with a Transmog NPC.")
 
-    local infoFrameText = infoFrame:CreateFontString("KVTIInfoFrameTextTitle", "OVERLAY", "GameTooltipText")
-    infoFrame.text = infoFrameText
-    infoFrameText:SetPoint("CENTER", 0, 0)
-    infoFrameText:SetPoint("TOPLEFT", infoFrame, "TOPLEFT", 14, -24)
-    infoFrameText:SetPoint("BOTTOMRIGHT", infoFrame, "BOTTOMRIGHT", -14, 14)
-    infoFrameText:SetText("You CAN modify 'Custom Sets' and you CAN browse, preview and apply 'Outfits'.\nYou CANNOT save any modifications to Outfits or purchase new Outfit Slots.\n\nVisit a transmog NPC to make changes to Outfits.")
+	local infoFrameText = infoFrame:CreateFontString("KVTIInfoFrameTextTitle", "OVERLAY", "GameTooltipText")
+	infoFrame.text = infoFrameText
+	infoFrameText:SetPoint("CENTER", 0, 0)
+	infoFrameText:SetPoint("TOPLEFT", infoFrame, "TOPLEFT", 14, -24)
+	infoFrameText:SetPoint("BOTTOMRIGHT", infoFrame, "BOTTOMRIGHT", -14, 14)
+	infoFrameText:SetText(
+	"You CAN modify 'Custom Sets' and you CAN browse, preview and apply 'Outfits'.\nYou CANNOT save any modifications to Outfits or purchase new Outfit Slots.\n\nVisit a transmog NPC to make changes to Outfits.")
 
 	KVTI.icon_suggester = KVTI.CreateIconSuggester(TransmogFrame)
 
-	TransmogFrame:HookScript("OnShow", KVTI_TransmogFrame_OnShow)
+	TransmogFrame:HookScript("OnShow", KVTI.TransmogFrame_OnShow)
 	-- Also hook Init so that we re-update the outfit numbers after the player edits an outfit's name/icon
-	hooksecurefunc(TransmogOutfitEntryMixin, "Init", KVTI_TransmogFrame_OnShow)
+	hooksecurefunc(TransmogOutfitEntryMixin, "Init", KVTI.TransmogFrame_OnShow)
 
-	TransmogFrame.OutfitPopup:HookScript("OnShow", KVTI_TransmogFrame_OutfitPopup_OnShow)
+	TransmogFrame.OutfitPopup:HookScript("OnShow", KVTI.TransmogFrame_OutfitPopup_OnShow)
 
-	KVTI.SetupOptions()
+	local mainButton = KVTI:SetupButton()
+	KVTI:CreateOutfitBar(mainButton)
+	KVTI:SetupOptions()
 
-	if KVTI.GetSetting("KVTI_CloseTransmogWithEsc") then
+
+	if KVTI.GetSavedVar("KVTI_CloseTransmogWithEsc") then
 		tinsert(UISpecialFrames, "TransmogFrame")
 	end
 
