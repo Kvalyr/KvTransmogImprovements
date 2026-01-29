@@ -13,7 +13,6 @@ function KVTI.TransmogFrame_OutfitPopup_OnShow(...)
 		if KVTI.icon_suggester then
 			KVTI.icon_suggester:Hide()
 		end
-		print("KVTI.TransmogFrame_OutfitPopup_OnShow", "Quitting early")
 		return
 	end
 	local TransmogFrame = KVTI.TransmogFrame
